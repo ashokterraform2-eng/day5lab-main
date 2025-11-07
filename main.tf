@@ -256,7 +256,7 @@ resource "aws_instance" "app" {
 
   user_data                   = file("${path.module}/scripts/app_setup.sh")
   user_data_replace_on_change = true
-  associate_public_ip_address = true
+  associate_public_ip_address = false
 
   tags = { Name = "app-${count.index + 1}" }
 }
