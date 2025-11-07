@@ -1,0 +1,72 @@
+name: Terraform CI/CD - 3 Tier AWS
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    name: Deploy 3-Tier Infra
+    runs-on: ubuntu-latest
+
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.5
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Ensure S3 bucket exists
+        run: |
+          BUCKET_NAME="day5-terrform-state-bucket1234"
+          REGION="${{ env.AWS_REGION }}"
+
+          if ! aws s3api head-bucket --bucket "$BUCKET_NAME" 2>/dev/null; then
+            echo "Bucket not found. Creating..."
+            if [ "$REGION" = "us-east-1" ]; then
+              aws s3api create-bucket --bucket "$BUCKET_NAME"
+            else
+              aws s3api create-bucket \
+                --bucket "$BUCKET_NAME" \
+                --region "$REGION" \
+                --create-bucket-configuration LocationConstraint="$REGION"
+            fi
+          else
+            echo "Bucket already exists."
+          fi
+
+
+      - name: Terraform Init
+        run: terraform init -reconfigure -input=false
+
+      - name: Terraform Format Check
+        run: terraform fmt -recursive
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan
+
+      - name: Terraform Apply (Auto-Approve)
+        if: github.ref == 'refs/heads/main'
+        run: terraform apply -auto-approve tfplan
+
+

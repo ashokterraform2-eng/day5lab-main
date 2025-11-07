@@ -1,0 +1,51 @@
+name: Terraform Destroy
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type YES to confirm destroy"
+        required: true
+
+jobs:
+  destroy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.confirm == 'YES' }}  # Only proceed if user types YES
+
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      BUCKET_NAME: "day5-terrform-state-bucket1234"   # your existing S3 state bucket
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.5
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      # ✅ Ensure the S3 bucket exists (in case someone deleted it manually)
+      - name: Ensure S3 bucket exists
+        run: |
+          if ! aws s3api head-bucket --bucket "$BUCKET_NAME" 2>/dev/null; then
+            echo "S3 bucket not found! The backend bucket must exist to load state."
+            exit 1
+          else
+            echo "S3 bucket exists — proceeding with destroy."
+          fi
+
+      # ✅ Initialize Terraform using the remote backend (S3 state)
+      - name: Terraform Init (S3 backend)
+        run: terraform init -reconfigure -input=false
+
+      # ✅ Destroy all infra using remote state
+      - name: Terraform Destroy
+        run: terraform destroy -auto-approve
