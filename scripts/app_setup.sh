@@ -4,7 +4,7 @@ set -euo pipefail
 # Log all output for debugging
 exec > /var/log/app_setup.log 2>&1
 
-echo "---- App Setup Started12 ----"
+echo "---- App Setup Started latest ----"
 
 # Ensure system packages
 sudo yum update -y
